@@ -1,0 +1,129 @@
+# ─────────────────────────────────────────
+
+# Python / Django
+
+# ─────────────────────────────────────────
+
+**pycache**/
+*.py[cod]
+*$py.class
+*.so
+*.log
+*.pot
+*.pyc
+
+# Django
+
+db.sqlite3
+*.sqlite3
+media/
+staticfiles/
+
+# Environment variables
+
+.env
+.env.*
+*.env
+
+# Virtual environments
+
+venv/
+env/
+ENV/
+.venv/
+
+# Python build files
+
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ─────────────────────────────────────────
+
+# Node / React
+
+# ─────────────────────────────────────────
+
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# React build
+
+build/
+dist/
+coverage/
+
+# Vite
+
+.vite/
+
+# ─────────────────────────────────────────
+
+# OS Files
+
+# ─────────────────────────────────────────
+
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─────────────────────────────────────────
+
+# IDE / Editor
+
+# ─────────────────────────────────────────
+
+.vscode/
+.idea/
+*.swp
+*.swo
+*.iml
+
+# ─────────────────────────────────────────
+
+# Logs
+
+# ─────────────────────────────────────────
+
+logs/
+*.log
+
+# ─────────────────────────────────────────
+
+# Testing
+
+# ─────────────────────────────────────────
+
+.pytest_cache/
+coverage.xml
+htmlcov/
+
+# ─────────────────────────────────────────
+
+# Django collectstatic
+
+# ─────────────────────────────────────────
+
+staticfiles/
+
+# ─────────────────────────────────────────
+
+# Celery / Redis
+
+# ─────────────────────────────────────────
+
+celerybeat-schedule
+celerybeat.pid
+
+# ─────────────────────────────────────────
+
+# Misc
+
+# ─────────────────────────────────────────
+
+*.bak
+*.tmp
+*.temp
