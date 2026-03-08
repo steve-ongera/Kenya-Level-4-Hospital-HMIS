@@ -1,448 +1,549 @@
 /**
  * pages/admin/AdminDashboard.jsx
- * System admin: stats, user management, all patients, billing report
  */
 
-import { useState, useEffect } from 'react';
-import { userService, patientService, billingService, dashboardService } from '../../services/api';
+import { useState, useEffect, useCallback } from 'react';
 import {
-  StatCard, SectionHeader, Card, Button, Badge,
-  Input, Select, Modal, Table, Alert, Tabs,
-} from '../../components/ui';
+  usersAPI, patientsAPI, specialistsAPI, tariffsAPI,
+  invoicesAPI, drugsAPI, dashboardAPI
+} from '../../services/api';
+import {
+  StatCard, DataTable, Modal, SearchInput, StatusBadge, Loading,
+  toast, formatDate, formatDateTime, Field, SectionTitle, DetailRow,
+  timeAgo, formatKES, ConfirmDialog, Pagination
+} from '../../components/ui/index.jsx';
 
-// ─── Overview Dashboard ───────────────────────────────────────────────────────
-function AdminOverviewPage() {
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+function AdminDashboardPage({ onNavigate }) {
   const [stats, setStats] = useState(null);
+  const [daily, setDaily] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    dashboardService.stats().then(r => setStats(r.data)).catch(() => {});
+    Promise.all([dashboardAPI.getStats(), invoicesAPI.dailySummary()])
+      .then(([s, d]) => { setStats(s.data); setDaily(d.data); })
+      .catch(() => toast.error('Failed to load'))
+      .finally(() => setLoading(false));
   }, []);
 
+  if (loading) return <Loading />;
+
   return (
     <div>
-      <SectionHeader
-        title="System Dashboard"
-        sub={new Date().toLocaleDateString('en-KE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-      />
-
-      {/* Today stats */}
-      <div style={{ marginBottom: 6 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
-          Today's Activity
-        </div>
+      <div className="page-header">
+        <div><h1 className="page-title">Admin Dashboard</h1><p className="page-subtitle">System overview and management</p></div>
       </div>
+
       <div className="grid-stats" style={{ marginBottom: 24 }}>
-        <StatCard label="Visits Today"      value={stats?.today_visits        ?? '…'} icon="📋" color="#0A6B5E"  />
-        <StatCard label="New Patients"      value={stats?.new_patients_today  ?? '…'} icon="👤" color="#1565C0"  />
-        <StatCard label="In Consultation"   value={stats?.in_consultation     ?? '…'} icon="🩺" color="#4A148C"  />
-        <StatCard label="Discharged"        value={stats?.discharged_today    ?? '…'} icon="✅" color="#198754"  />
-        <StatCard label="Today's Revenue"   value={`KES ${(stats?.today_revenue ?? 0).toLocaleString()}`} icon="💰" color="#0097A7" sub="Collected" />
+        <StatCard icon="bi-people-fill"           iconBg="#E8F5F3" iconColor="var(--color-primary)" value={stats?.today_visits}      label="Today's Visits" />
+        <StatCard icon="bi-person-lines-fill"      iconBg="#E3F2FD" iconColor="#1565C0"             value={stats?.total_patients}    label="Total Patients" />
+        <StatCard icon="bi-cash-coin"             iconBg="#FFF8E1" iconColor="var(--color-accent)"  value={formatKES(daily?.total_collected)} label="Today Revenue" />
+        <StatCard icon="bi-receipt"               iconBg="#E8F5F3" iconColor="var(--color-primary)" value={daily?.invoice_count}     label="Invoices Today" />
+        <StatCard icon="bi-hourglass-split"       iconBg="#FFF8E1" iconColor="var(--color-warning)" value={daily?.pending_count}     label="Pending Invoices" subColor="var(--color-warning)" />
+        <StatCard icon="bi-exclamation-triangle"  iconBg="#FDEEEE" iconColor="var(--color-danger)"  value={stats?.low_stock_drugs}   label="Low Stock Drugs"  subColor="var(--color-danger)" />
+        <StatCard icon="bi-eyedropper"            iconBg="#E0F7FA" iconColor="#006064"              value={stats?.pending_lab}       label="Pending Labs" />
+        <StatCard icon="bi-capsule"               iconBg="#FFEBEE" iconColor="#BF360C"              value={stats?.pending_pharmacy}  label="Pending Pharmacy" />
       </div>
 
-      <div style={{ marginBottom: 6 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
-          Pending Actions
-        </div>
-      </div>
-      <div className="grid-stats" style={{ marginBottom: 24 }}>
-        <StatCard label="Pending Lab"       value={stats?.pending_lab        ?? '…'} icon="🔬" color="#006064"  sub="Awaiting results" />
-        <StatCard label="Pending Radiology" value={stats?.pending_radiology  ?? '…'} icon="🩻" color="#4E342E"  sub="Awaiting imaging" />
-        <StatCard label="Pending Pharmacy"  value={stats?.pending_pharmacy   ?? '…'} icon="💊" color="#BF360C"  sub="Awaiting dispensing" />
-        <StatCard label="Low Stock Drugs"   value={stats?.low_stock_drugs    ?? '…'} icon="⚠️" color="#D48C10"  sub="Needs reorder" />
-        <StatCard label="Total Patients"    value={stats?.total_patients     ?? '…'} icon="👥" color="#0A6B5E"  sub="All time" />
-      </div>
-
-      {/* System info */}
       <div className="grid-2">
-        <Card>
-          <h3 style={{ margin: '0 0 14px', fontSize: 14, fontWeight: 700 }}>🏥 System Info</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {[
-              ['Hospital',    'Kenya National Hospital'],
-              ['Level',       'Level 4'],
-              ['MFL Code',    '12345'],
-              ['County',      'Nairobi'],
-              ['HMIS Version','v2.0.0'],
-              ['Django',      '5.x · DRF · PostgreSQL'],
-              ['Frontend',    'React 18 · Vite'],
-            ].map(([k, v]) => (
-              <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '6px 0', borderBottom: '1px solid var(--color-border-light)' }}>
-                <span style={{ color: 'var(--color-text-muted)', fontWeight: 600 }}>{k}</span>
-                <span style={{ fontWeight: 500 }}>{v}</span>
+        <div className="card">
+          <div className="card-header"><h3 className="card-title">Quick Links</h3></div>
+          {[
+            { page: 'users',        icon: 'bi-people-fill',  label: 'User Management',   color: '#1565C0' },
+            { page: 'specialists',  icon: 'bi-award-fill',   label: 'Specialists',        color: '#4A148C' },
+            { page: 'tariffs',      icon: 'bi-tags-fill',    label: 'Service Tariffs',    color: '#006064' },
+            { page: 'drugs_admin',  icon: 'bi-capsule',      label: 'Drug Inventory',     color: '#BF360C' },
+            { page: 'invoices',     icon: 'bi-receipt',      label: 'All Invoices',       color: '#0A6B5E' },
+            { page: 'billing_report', icon: 'bi-bar-chart-fill', label: 'Billing Report', color: '#D48C10' },
+          ].map(item => (
+            <div key={item.page} className="queue-item" onClick={() => onNavigate(item.page)} style={{ cursor: 'pointer' }}>
+              <div style={{ width: 36, height: 36, borderRadius: 8, background: item.color + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <i className={`bi ${item.icon}`} style={{ color: item.color }} />
               </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card>
-          <h3 style={{ margin: '0 0 14px', fontSize: 14, fontWeight: 700 }}>🔌 Integrations</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[
-              { name: 'eTIMS (KRA)', status: 'active',  desc: 'Electronic Tax Invoice Management' },
-              { name: 'SHA',         status: 'active',  desc: 'Social Health Authority' },
-              { name: 'KHIS',        status: 'pending', desc: 'Kenya Health Info System' },
-              { name: 'NHIF',        status: 'legacy',  desc: 'Legacy — migrated to SHA' },
-            ].map(({ name, status, desc }) => (
-              <div key={name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--color-bg)', borderRadius: 8 }}>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 13 }}>{name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{desc}</div>
-                </div>
-                <Badge color={status === 'active' ? 'success' : status === 'pending' ? 'warning' : 'muted'}>
-                  {status}
-                </Badge>
-              </div>
-            ))}
-          </div>
-        </Card>
+              <span style={{ fontWeight: 600, fontSize: '0.84rem' }}>{item.label}</span>
+              <i className="bi bi-chevron-right" style={{ marginLeft: 'auto', color: 'var(--color-text-muted)', fontSize: '0.8rem' }} />
+            </div>
+          ))}
+        </div>
+        <div className="card">
+          <div className="card-header"><h3 className="card-title">Today's Summary</h3></div>
+          <DetailRow label="Total Visits"      value={stats?.today_visits} />
+          <DetailRow label="New Patients"      value={stats?.new_patients_today} />
+          <DetailRow label="Discharged"        value={stats?.discharged_today} />
+          <DetailRow label="In Consultation"   value={stats?.in_consultation} />
+          <DetailRow label="Waiting Queue"     value={stats?.waiting_queue} />
+          <DetailRow label="Revenue Collected" value={formatKES(daily?.total_collected)} />
+          <DetailRow label="Pending Payment"   value={daily?.pending_count} />
+        </div>
       </div>
     </div>
   );
 }
 
-// ─── User Management ──────────────────────────────────────────────────────────
-function UserManagementPage() {
-  const [users,     setUsers]     = useState([]);
-  const [loading,   setLoading]   = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [error,     setError]     = useState('');
-  const [saving,    setSaving]    = useState(false);
-  const [filterRole, setFilterRole] = useState('');
+// ── User Management ───────────────────────────────────────────────────────────
+const BLANK_USER = { username: '', first_name: '', last_name: '', email: '', role: 'receptionist', phone: '', employee_id: '', department: '', specialization: '', license_number: '', password: '', password2: '' };
 
-  const emptyForm = {
-    first_name:'', last_name:'', username:'', email:'',
-    role:'receptionist', phone:'', employee_id:'', department:'',
-    specialization:'', license_number:'', password:'', password2:'',
-  };
-  const [form, setForm] = useState(emptyForm);
-  const f = k => v => setForm(p => ({ ...p, [k]: v }));
+function UsersPage({ onNavigate }) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [editUser, setEditUser] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [form, setForm] = useState({ ...BLANK_USER });
+  const [errors, setErrors] = useState({});
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true);
-    userService.list(filterRole ? { role: filterRole } : {})
-      .then(r => { setUsers(r.data.results || r.data); setLoading(false); })
-      .catch(() => setLoading(false));
-  };
-  useEffect(load, [filterRole]);
+    usersAPI.list({ search, role: roleFilter || undefined })
+      .then(r => setUsers(Array.isArray(r.data) ? r.data : r.data.results || []))
+      .catch(() => toast.error('Failed to load users'))
+      .finally(() => setLoading(false));
+  }, [search, roleFilter]);
 
-  const createUser = async () => {
-    if (!form.first_name || !form.username || !form.password) {
-      setError('First name, username and password are required.'); return;
-    }
-    if (form.password !== form.password2) {
-      setError('Passwords do not match.'); return;
-    }
-    setSaving(true); setError('');
+  useEffect(() => { load(); }, [load]);
+
+  const set = k => e => { setForm(f => ({ ...f, [k]: e.target.value })); if (errors[k]) setErrors(er => { const n = {...er}; delete n[k]; return n; }); };
+
+  const openEdit = (u) => {
+    setEditUser(u);
+    setForm({ username: u.username, first_name: u.first_name, last_name: u.last_name, email: u.email, role: u.role, phone: u.phone || '', employee_id: u.employee_id || '', department: u.department || '', specialization: u.specialization || '', license_number: u.license_number || '', password: '', password2: '' });
+    setShowForm(true);
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
     try {
-      await userService.create(form);
-      setShowModal(false);
-      setForm(emptyForm);
-      load();
-    } catch (e) {
-      setError(e.response?.data ? JSON.stringify(e.response.data) : 'Failed to create user.');
-    } finally {
-      setSaving(false);
+      const payload = { ...form };
+      if (!payload.password) { delete payload.password; delete payload.password2; }
+      if (editUser) { await usersAPI.update(editUser.id, payload); toast.success('User updated'); }
+      else          { await usersAPI.create(payload);               toast.success('User created'); }
+      setShowForm(false); setEditUser(null); load();
+    } catch (err) {
+      const d = err.response?.data;
+      if (d && typeof d === 'object') setErrors(d);
+      else toast.error('Failed to save user');
     }
   };
 
-  const toggleActive = async (user) => {
-    await userService.update(user.id, { is_active: !user.is_active });
-    load();
+  const handleDelete = async () => {
+    try { await usersAPI.delete(confirmDelete.id); toast.success('User deleted'); setConfirmDelete(null); load(); }
+    catch { toast.error('Cannot delete this user'); }
   };
 
-  const ROLES = ['receptionist','nurse','doctor','pharmacist','lab','radiology','admin'];
-  const roleColors = { receptionist:'primary', nurse:'info', doctor:'muted', pharmacist:'danger', lab:'success', radiology:'warning', admin:'primary' };
+  const ROLE_COLORS = { receptionist: '#0A6B5E', nurse: '#1565C0', doctor: '#4A148C', pharmacist: '#BF360C', lab: '#006064', radiology: '#4E342E', admin: '#1B5E20' };
+
+  const cols = [
+    { label: 'Employee ID', render: r => <span style={{ fontFamily: 'DM Mono', fontSize: '0.78rem' }}>{r.employee_id || '—'}</span> },
+    { label: 'Name',        render: r => <span style={{ fontWeight: 600 }}>{r.full_name}</span> },
+    { label: 'Username',    key: 'username' },
+    { label: 'Role',        render: r => <span className="badge" style={{ background: ROLE_COLORS[r.role] + '18', color: ROLE_COLORS[r.role], borderColor: ROLE_COLORS[r.role] + '40' }}>{r.role}</span> },
+    { label: 'Department',  key: 'department' },
+    { label: 'Phone',       key: 'phone' },
+    { label: 'Status',      render: r => <span className={`badge ${r.is_active ? 'badge-success' : 'badge-muted'}`}>{r.is_active ? 'Active' : 'Inactive'}</span> },
+    { label: '',            render: r => (
+      <div className="table-actions">
+        <button className="btn btn-ghost btn-icon-sm" title="Edit" onClick={() => openEdit(r)}><i className="bi bi-pencil" /></button>
+        <button className="btn btn-ghost btn-icon-sm" title="Delete" style={{ color: 'var(--color-danger)' }} onClick={() => setConfirmDelete(r)}><i className="bi bi-trash" /></button>
+      </div>
+    )},
+  ];
 
   return (
     <div>
-      <SectionHeader
-        title="User Management"
-        sub="Manage staff accounts and module access"
-        action={<Button variant="primary" icon="➕" onClick={() => setShowModal(true)}>Add User</Button>}
-      />
+      <div className="page-header">
+        <div><h1 className="page-title">User Management</h1></div>
+        <button className="btn btn-primary btn-md" onClick={() => { setEditUser(null); setForm({ ...BLANK_USER }); setErrors({}); setShowForm(true); }}>
+          <i className="bi bi-person-plus-fill" /> Add User
+        </button>
+      </div>
+      <div className="filter-bar">
+        <SearchInput value={search} onChange={setSearch} onClear={() => setSearch('')} placeholder="Search name, username, employee ID…" style={{ flex: 1 }} />
+        <select className="form-control" style={{ width: 170 }} value={roleFilter} onChange={e => setRoleFilter(e.target.value)}>
+          <option value="">All Roles</option>
+          {['receptionist','nurse','doctor','pharmacist','lab','radiology','admin'].map(r => <option key={r} value={r}>{r}</option>)}
+        </select>
+        <button className="btn btn-outline btn-sm" onClick={load}><i className="bi bi-arrow-clockwise" /></button>
+      </div>
+      <div className="card">
+        <DataTable columns={cols} data={users} loading={loading} emptyIcon="bi-person-x" emptyText="No users found" />
+      </div>
 
-      <Card style={{ marginBottom: 14 }}>
-        <Select
-          label="Filter by Role"
-          value={filterRole}
-          onChange={setFilterRole}
-          options={[{ value:'', label:'All Roles' }, ...ROLES.map(r => ({ value: r, label: r.charAt(0).toUpperCase() + r.slice(1) }))]}
-          style={{ maxWidth: 260, marginBottom: 0 }}
-        />
-      </Card>
-
-      <Card>
-        <Table
-          loading={loading}
-          columns={[
-            { key: 'full_name',    label: 'Full Name',   render: (v, r) => <strong>{v}</strong> },
-            { key: 'username',     label: 'Username',    render: v => <span className="patient-id">{v}</span> },
-            { key: 'role',         label: 'Role',        render: v => <Badge color={roleColors[v] || 'muted'}>{v}</Badge> },
-            { key: 'department',   label: 'Department',  render: v => v || '—' },
-            { key: 'employee_id',  label: 'Employee ID', render: v => v || '—' },
-            { key: 'phone',        label: 'Phone',       render: v => v || '—' },
-            { key: 'is_active',    label: 'Status',
-              render: v => <Badge color={v ? 'success' : 'danger'}>{v ? 'Active' : 'Inactive'}</Badge> },
-          ]}
-          data={users}
-          actions={row => (
-            <Button
-              size="sm"
-              variant={row.is_active ? 'danger' : 'success'}
-              onClick={() => toggleActive(row)}
-            >
-              {row.is_active ? 'Deactivate' : 'Activate'}
-            </Button>
-          )}
-        />
-      </Card>
-
-      {/* Create User Modal */}
-      <Modal
-        open={showModal}
-        onClose={() => { setShowModal(false); setError(''); setForm(emptyForm); }}
-        title="Create New User"
-        width={620}
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setShowModal(false)}>Cancel</Button>
-            <Button variant="primary" icon="💾" onClick={createUser} disabled={saving}>
-              {saving ? 'Creating…' : 'Create User'}
-            </Button>
-          </>
-        }
-      >
-        {error && <Alert type="danger">{error}</Alert>}
-        <div className="form-row">
-          <Input label="First Name" value={form.first_name} onChange={f('first_name')} required />
-          <Input label="Last Name"  value={form.last_name}  onChange={f('last_name')}  required />
-        </div>
-        <div className="form-row">
-          <Input label="Username"   value={form.username}   onChange={f('username')}   required />
-          <Input label="Email"      type="email" value={form.email} onChange={f('email')} />
-        </div>
-        <div className="form-row">
-          <Select label="Role" value={form.role} onChange={f('role')} required
-            options={ROLES.map(r => ({ value: r, label: r.charAt(0).toUpperCase() + r.slice(1) }))} />
-          <Input label="Phone" value={form.phone} onChange={f('phone')} />
-        </div>
-        <div className="form-row">
-          <Input label="Employee ID"  value={form.employee_id}  onChange={f('employee_id')} />
-          <Input label="Department"   value={form.department}   onChange={f('department')} />
-        </div>
-        {form.role === 'doctor' && (
-          <div className="form-row">
-            <Input label="Specialization" value={form.specialization}  onChange={f('specialization')} />
-            <Input label="License Number" value={form.license_number}  onChange={f('license_number')} />
+      <Modal isOpen={showForm} onClose={() => setShowForm(false)} title={editUser ? `Edit: ${editUser.full_name}` : 'Add New User'} size="lg" icon="bi-person-fill"
+        footer={<><button className="btn btn-outline-muted btn-sm" onClick={() => setShowForm(false)}>Cancel</button><button className="btn btn-primary btn-sm" form="userForm" type="submit"><i className="bi bi-check2" /> {editUser ? 'Update' : 'Create User'}</button></>}>
+        <form id="userForm" onSubmit={handleSave}>
+          <SectionTitle icon="bi-person-badge">Account</SectionTitle>
+          <div className="form-row-3">
+            <Field label="Username" required error={errors.username}><input className={`form-control ${errors.username ? 'is-invalid' : ''}`} value={form.username} onChange={set('username')} required /></Field>
+            <Field label="Employee ID" error={errors.employee_id}><input className="form-control" value={form.employee_id} onChange={set('employee_id')} /></Field>
+            <Field label="Role" required>
+              <select className="form-control" value={form.role} onChange={set('role')}>
+                {['receptionist','nurse','doctor','pharmacist','lab','radiology','admin'].map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </Field>
           </div>
-        )}
-        <div className="form-row">
-          <Input label="Password"         type="password" value={form.password}  onChange={f('password')}  required />
-          <Input label="Confirm Password" type="password" value={form.password2} onChange={f('password2')} required />
-        </div>
+          <div className="form-row-3">
+            <Field label="First Name" required><input className="form-control" value={form.first_name} onChange={set('first_name')} required /></Field>
+            <Field label="Last Name"  required><input className="form-control" value={form.last_name}  onChange={set('last_name')} required /></Field>
+            <Field label="Email"><input type="email" className="form-control" value={form.email} onChange={set('email')} /></Field>
+          </div>
+          <div className="form-row-3">
+            <Field label="Phone"><input className="form-control" value={form.phone} onChange={set('phone')} /></Field>
+            <Field label="Department"><input className="form-control" value={form.department} onChange={set('department')} /></Field>
+            <Field label="Specialization" hint="For doctors"><input className="form-control" value={form.specialization} onChange={set('specialization')} /></Field>
+          </div>
+          <Field label="License Number"><input className="form-control" value={form.license_number} onChange={set('license_number')} /></Field>
+          <SectionTitle icon="bi-lock-fill">Password {editUser ? '(leave blank to keep)' : ''}</SectionTitle>
+          <div className="form-row-2">
+            <Field label="Password" required={!editUser} error={errors.password}><input type="password" className={`form-control ${errors.password ? 'is-invalid' : ''}`} value={form.password} onChange={set('password')} required={!editUser} /></Field>
+            <Field label="Confirm Password" error={errors.password2}><input type="password" className="form-control" value={form.password2} onChange={set('password2')} /></Field>
+          </div>
+        </form>
       </Modal>
+
+      <ConfirmDialog isOpen={!!confirmDelete} danger title="Delete User" message={`Delete user ${confirmDelete?.full_name}? This cannot be undone.`} onConfirm={handleDelete} onCancel={() => setConfirmDelete(null)} />
     </div>
   );
 }
 
-// ─── All Patients ─────────────────────────────────────────────────────────────
-function AllPatientsPage() {
-  const [patients, setPatients] = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [search,   setSearch]   = useState('');
-  const [selected, setSelected] = useState(null);
-
-  const load = (q = '') => {
-    setLoading(true);
-    const call = q ? patientService.search(q) : patientService.list();
-    call
-      .then(r => { setPatients(r.data.results || r.data); setLoading(false); })
-      .catch(() => setLoading(false));
-  };
-
-  useEffect(() => { load(); }, []);
-
-  const doSearch = () => load(search);
-
-  return (
-    <div>
-      <SectionHeader title="All Patients" sub="Complete patient registry" />
-
-      <Card style={{ marginBottom: 14 }}>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
-          <Input
-            label="Search"
-            value={search}
-            onChange={setSearch}
-            placeholder="Phone, ID, Name, Patient No., SHA No."
-            style={{ flex: 1, marginBottom: 0 }}
-          />
-          <Button variant="primary" icon="🔍" onClick={doSearch}>Search</Button>
-          <Button variant="ghost" onClick={() => { setSearch(''); load(); }}>Reset</Button>
-        </div>
-      </Card>
-
-      <Card>
-        <Table
-          loading={loading}
-          columns={[
-            { key: 'patient_number', label: 'Patient No.',  render: v => <span className="patient-id">{v}</span> },
-            { key: 'full_name',      label: 'Full Name',    render: v => <strong>{v}</strong> },
-            { key: 'gender',         label: 'Gender' },
-            { key: 'age',            label: 'Age' },
-            { key: 'phone',          label: 'Phone' },
-            { key: 'county',         label: 'County',       render: v => v || '—' },
-            { key: 'sha_number',     label: 'SHA No.',
-              render: v => v ? <Badge color="success">{v}</Badge> : <Badge color="muted">None</Badge> },
-            { key: 'total_visits',   label: 'Visits',       render: v => <Badge color="primary">{v}</Badge> },
-            { key: 'created_at',     label: 'Registered',
-              render: v => v ? new Date(v).toLocaleDateString('en-KE') : '—' },
-          ]}
-          data={patients}
-          actions={row => (
-            <Button size="sm" variant="outline" onClick={() => setSelected(row)}>View</Button>
-          )}
-        />
-      </Card>
-
-      {/* Patient detail modal */}
-      <Modal
-        open={!!selected}
-        onClose={() => setSelected(null)}
-        title={selected?.full_name || 'Patient Details'}
-        width={660}
-      >
-        {selected && (
-          <div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-              <span className="patient-id">{selected.patient_number}</span>
-              {selected.sha_number && <Badge color="success">SHA: {selected.sha_number}</Badge>}
-              {selected.is_minor && <Badge color="warning">Minor</Badge>}
-              {selected.allergies && <Badge color="danger">⚠️ Allergies</Badge>}
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px', fontSize: 13 }}>
-              {[
-                ['Gender',      selected.gender],
-                ['Age',         selected.age],
-                ['DOB',         selected.date_of_birth],
-                ['Blood Group', selected.blood_group],
-                ['Phone',       selected.phone],
-                ['Alt Phone',   selected.alt_phone || '—'],
-                ['ID Type',     selected.id_type],
-                ['ID Number',   selected.id_number || '—'],
-                ['County',      selected.county || '—'],
-                ['Email',       selected.email || '—'],
-                ['NOK Name',    selected.nok_name || '—'],
-                ['NOK Phone',   selected.nok_phone || '—'],
-              ].map(([k, v]) => (
-                <div key={k} style={{ paddingBottom: 6, borderBottom: '1px solid var(--color-border-light)' }}>
-                  <span style={{ color: 'var(--color-text-muted)', fontWeight: 600 }}>{k}:</span>{' '}
-                  <span>{v}</span>
-                </div>
-              ))}
-            </div>
-            {selected.allergies && (
-              <div style={{ marginTop: 12, padding: 10, background: 'var(--color-danger-bg)', borderRadius: 8, fontSize: 13, border: '1px solid #F5C6CB' }}>
-                <strong>⚠️ Allergies:</strong> {selected.allergies}
-              </div>
-            )}
-          </div>
-        )}
-      </Modal>
-    </div>
-  );
-}
-
-// ─── Billing Report ───────────────────────────────────────────────────────────
-function BillingReportPage() {
-  const [invoices, setInvoices] = useState([]);
-  const [summary,  setSummary]  = useState(null);
-  const [loading,  setLoading]  = useState(true);
-  const [filter,   setFilter]   = useState('');
+// ── Specialists ───────────────────────────────────────────────────────────────
+function SpecialistsPage({ onNavigate }) {
+  const [specialists, setSpecialists] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editSpec, setEditSpec] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [form, setForm] = useState({ name: '', code: '', consultation_fee: '', description: '', is_active: true });
 
   const load = () => {
     setLoading(true);
-    Promise.all([
-      billingService.invoices.list(filter ? { status: filter } : {}),
-      billingService.invoices.dailySummary(),
-    ]).then(([inv, sum]) => {
-      setInvoices(inv.data.results || inv.data);
-      setSummary(sum.data);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    specialistsAPI.list()
+      .then(r => setSpecialists(Array.isArray(r.data) ? r.data : r.data.results || []))
+      .catch(() => toast.error('Failed to load'))
+      .finally(() => setLoading(false));
   };
-  useEffect(load, [filter]);
+  useEffect(load, []);
 
-  const statusColor = { paid:'success', partial:'warning', pending:'danger', cancelled:'muted', waived:'info' };
+  const set = k => e => setForm(f => ({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
+
+  const openEdit = (s) => { setEditSpec(s); setForm({ name: s.name, code: s.code, consultation_fee: s.consultation_fee, description: s.description, is_active: s.is_active }); setShowForm(true); };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    try {
+      if (editSpec) { await specialistsAPI.update(editSpec.id, form); toast.success('Specialist updated'); }
+      else          { await specialistsAPI.create(form);               toast.success('Specialist added'); }
+      setShowForm(false); setEditSpec(null); load();
+    } catch { toast.error('Failed to save'); }
+  };
+
+  const handleDelete = async () => {
+    try { await specialistsAPI.delete(confirmDelete.id); toast.success('Deleted'); setConfirmDelete(null); load(); }
+    catch { toast.error('Cannot delete — may be in use'); }
+  };
+
+  const cols = [
+    { label: 'Code',  render: r => <span style={{ fontFamily: 'DM Mono', fontSize: '0.8rem', fontWeight: 700 }}>{r.code}</span> },
+    { label: 'Name',  render: r => <span style={{ fontWeight: 600 }}>{r.name}</span> },
+    { label: 'Consultation Fee', render: r => formatKES(r.consultation_fee) },
+    { label: 'Description', render: r => r.description || '—' },
+    { label: 'Status', render: r => <span className={`badge ${r.is_active ? 'badge-success' : 'badge-muted'}`}>{r.is_active ? 'Active' : 'Inactive'}</span> },
+    { label: '', render: r => (
+      <div className="table-actions">
+        <button className="btn btn-ghost btn-icon-sm" onClick={() => openEdit(r)}><i className="bi bi-pencil" /></button>
+        <button className="btn btn-ghost btn-icon-sm" style={{ color: 'var(--color-danger)' }} onClick={() => setConfirmDelete(r)}><i className="bi bi-trash" /></button>
+      </div>
+    )},
+  ];
 
   return (
     <div>
-      <SectionHeader
-        title="Billing Report"
-        sub="Revenue and invoice overview"
-        action={<Button variant="outline" icon="🔄" onClick={load}>Refresh</Button>}
-      />
-
-      {/* Today's summary */}
-      {summary && (
-        <div className="grid-stats" style={{ marginBottom: 20 }}>
-          <StatCard label="Today's Revenue"  value={`KES ${(summary.total_collected || 0).toLocaleString()}`} icon="💰" color="#0A6B5E" />
-          <StatCard label="Invoices Today"   value={summary.invoice_count  || 0}  icon="📄" color="#1565C0" />
-          <StatCard label="Pending Invoices" value={summary.pending_count  || 0}  icon="⏳" color="#D48C10" sub="Outstanding" />
-        </div>
-      )}
-
-      <Card style={{ marginBottom: 14 }}>
-        <Select
-          label="Filter by Status"
-          value={filter}
-          onChange={setFilter}
-          options={[
-            { value:'',         label:'All Invoices' },
-            { value:'pending',  label:'Pending' },
-            { value:'partial',  label:'Partially Paid' },
-            { value:'paid',     label:'Paid' },
-            { value:'cancelled',label:'Cancelled' },
-          ]}
-          style={{ maxWidth: 260, marginBottom: 0 }}
-        />
-      </Card>
-
-      <Card>
-        <Table
-          loading={loading}
-          columns={[
-            { key: 'invoice_number', label: 'Invoice No.',
-              render: v => <span className="patient-id">{v}</span> },
-            { key: 'patient_name',   label: 'Patient' },
-            { key: 'visit_number',   label: 'Visit No.',
-              render: v => <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{v}</span> },
-            { key: 'total_amount',   label: 'Total',
-              render: v => `KES ${parseFloat(v || 0).toLocaleString()}` },
-            { key: 'amount_paid',    label: 'Paid',
-              render: v => <span style={{ color: 'var(--color-success)', fontWeight: 700 }}>KES {parseFloat(v || 0).toLocaleString()}</span> },
-            { key: 'balance',        label: 'Balance',
-              render: v => parseFloat(v) > 0
-                ? <span style={{ color: 'var(--color-danger)', fontWeight: 700 }}>KES {parseFloat(v).toLocaleString()}</span>
-                : <span style={{ color: 'var(--color-success)' }}>—</span> },
-            { key: 'status',         label: 'Status',
-              render: v => <Badge color={statusColor[v] || 'muted'}>{v}</Badge> },
-            { key: 'created_at',     label: 'Date',
-              render: v => v ? new Date(v).toLocaleDateString('en-KE') : '—' },
-          ]}
-          data={invoices}
-        />
-      </Card>
+      <div className="page-header">
+        <div><h1 className="page-title">Specialists / Clinics</h1></div>
+        <button className="btn btn-primary btn-md" onClick={() => { setEditSpec(null); setForm({ name: '', code: '', consultation_fee: '', description: '', is_active: true }); setShowForm(true); }}><i className="bi bi-plus" /> Add Specialist</button>
+      </div>
+      <div className="card">
+        <DataTable columns={cols} data={specialists} loading={loading} emptyIcon="bi-award" />
+      </div>
+      <Modal isOpen={showForm} onClose={() => setShowForm(false)} title={editSpec ? 'Edit Specialist' : 'Add Specialist'} size="sm" icon="bi-award-fill"
+        footer={<><button className="btn btn-outline-muted btn-sm" onClick={() => setShowForm(false)}>Cancel</button><button className="btn btn-primary btn-sm" form="specForm" type="submit"><i className="bi bi-check2" /> Save</button></>}>
+        <form id="specForm" onSubmit={handleSave}>
+          <div className="form-row-2"><Field label="Name" required><input className="form-control" value={form.name} onChange={set('name')} required /></Field><Field label="Code" required><input className="form-control" value={form.code} onChange={set('code')} required /></Field></div>
+          <Field label="Consultation Fee (KES)" required><input type="number" className="form-control" value={form.consultation_fee} onChange={set('consultation_fee')} step="0.01" required /></Field>
+          <Field label="Description"><textarea className="form-control" value={form.description} onChange={set('description')} rows={2} /></Field>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginTop: 8 }}><input type="checkbox" checked={form.is_active} onChange={set('is_active')} /><span style={{ fontSize: '0.84rem' }}>Active</span></label>
+        </form>
+      </Modal>
+      <ConfirmDialog isOpen={!!confirmDelete} danger title="Delete Specialist" message={`Delete ${confirmDelete?.name}?`} onConfirm={handleDelete} onCancel={() => setConfirmDelete(null)} />
     </div>
   );
 }
 
-// ─── Root ─────────────────────────────────────────────────────────────────────
+// ── Service Tariffs ───────────────────────────────────────────────────────────
+function TariffsPage({ onNavigate }) {
+  const [tariffs, setTariffs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [catFilter, setCatFilter] = useState('');
+  const [showForm, setShowForm] = useState(false);
+  const [editTariff, setEditTariff] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [form, setForm] = useState({ code: '', name: '', category: 'lab', price: '', sha_covered: false, sha_rate: 0, is_active: true });
+
+  const load = useCallback(() => {
+    setLoading(true);
+    tariffsAPI.list({ search, category: catFilter || undefined })
+      .then(r => setTariffs(Array.isArray(r.data) ? r.data : r.data.results || []))
+      .catch(() => toast.error('Failed to load'))
+      .finally(() => setLoading(false));
+  }, [search, catFilter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const set = k => e => setForm(f => ({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
+
+  const openEdit = (t) => { setEditTariff(t); setForm({ code: t.code, name: t.name, category: t.category, price: t.price, sha_covered: t.sha_covered, sha_rate: t.sha_rate, is_active: t.is_active }); setShowForm(true); };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    try {
+      if (editTariff) { await tariffsAPI.update(editTariff.id, form); toast.success('Tariff updated'); }
+      else            { await tariffsAPI.create(form);                 toast.success('Tariff added'); }
+      setShowForm(false); setEditTariff(null); load();
+    } catch { toast.error('Failed to save'); }
+  };
+
+  const handleDelete = async () => {
+    try { await tariffsAPI.delete(confirmDelete.id); toast.success('Deleted'); setConfirmDelete(null); load(); }
+    catch { toast.error('Cannot delete — may be in use'); }
+  };
+
+  const cols = [
+    { label: 'Code',     render: r => <span style={{ fontFamily: 'DM Mono', fontSize: '0.78rem' }}>{r.code}</span> },
+    { label: 'Name',     render: r => <span style={{ fontWeight: 600 }}>{r.name}</span> },
+    { label: 'Category', render: r => <span className="badge badge-info">{r.category}</span> },
+    { label: 'Price',    render: r => formatKES(r.price) },
+    { label: 'SHA',      render: r => r.sha_covered ? <><span className="sha-badge">SHA ✓</span><span style={{ fontSize: '0.75rem', marginLeft: 6 }}>{formatKES(r.sha_rate)}</span></> : '—' },
+    { label: 'Status',   render: r => <span className={`badge ${r.is_active ? 'badge-success' : 'badge-muted'}`}>{r.is_active ? 'Active' : 'Inactive'}</span> },
+    { label: '',         render: r => (
+      <div className="table-actions">
+        <button className="btn btn-ghost btn-icon-sm" onClick={() => openEdit(r)}><i className="bi bi-pencil" /></button>
+        <button className="btn btn-ghost btn-icon-sm" style={{ color: 'var(--color-danger)' }} onClick={() => setConfirmDelete(r)}><i className="bi bi-trash" /></button>
+      </div>
+    )},
+  ];
+
+  return (
+    <div>
+      <div className="page-header">
+        <div><h1 className="page-title">Service Tariffs</h1></div>
+        <button className="btn btn-primary btn-md" onClick={() => { setEditTariff(null); setForm({ code: '', name: '', category: 'lab', price: '', sha_covered: false, sha_rate: 0, is_active: true }); setShowForm(true); }}><i className="bi bi-plus" /> Add Tariff</button>
+      </div>
+      <div className="filter-bar">
+        <SearchInput value={search} onChange={setSearch} onClear={() => setSearch('')} placeholder="Search code or name…" style={{ flex: 1 }} />
+        <select className="form-control" style={{ width: 160 }} value={catFilter} onChange={e => setCatFilter(e.target.value)}>
+          <option value="">All Categories</option>
+          {['lab','radiology','procedure','pharmacy','other'].map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <button className="btn btn-outline btn-sm" onClick={load}><i className="bi bi-arrow-clockwise" /></button>
+      </div>
+      <div className="card">
+        <DataTable columns={cols} data={tariffs} loading={loading} emptyIcon="bi-tags" />
+      </div>
+      <Modal isOpen={showForm} onClose={() => setShowForm(false)} title={editTariff ? 'Edit Tariff' : 'Add Tariff'} size="md" icon="bi-tags-fill"
+        footer={<><button className="btn btn-outline-muted btn-sm" onClick={() => setShowForm(false)}>Cancel</button><button className="btn btn-primary btn-sm" form="tariffForm" type="submit"><i className="bi bi-check2" /> Save</button></>}>
+        <form id="tariffForm" onSubmit={handleSave}>
+          <div className="form-row-2"><Field label="Code" required><input className="form-control" value={form.code} onChange={set('code')} required /></Field><Field label="Name" required><input className="form-control" value={form.name} onChange={set('name')} required /></Field></div>
+          <div className="form-row-2">
+            <Field label="Category">
+              <select className="form-control" value={form.category} onChange={set('category')}>
+                {['lab','radiology','procedure','pharmacy','other'].map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </Field>
+            <Field label="Price (KES)" required><input type="number" className="form-control" value={form.price} onChange={set('price')} step="0.01" required /></Field>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 12 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}><input type="checkbox" checked={form.sha_covered} onChange={set('sha_covered')} /><span style={{ fontSize: '0.84rem' }}>SHA Covered</span></label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}><input type="checkbox" checked={form.is_active} onChange={set('is_active')} /><span style={{ fontSize: '0.84rem' }}>Active</span></label>
+          </div>
+          {form.sha_covered && <Field label="SHA Rate (KES)"><input type="number" className="form-control" value={form.sha_rate} onChange={set('sha_rate')} step="0.01" /></Field>}
+        </form>
+      </Modal>
+      <ConfirmDialog isOpen={!!confirmDelete} danger title="Delete Tariff" message={`Delete "${confirmDelete?.name}"?`} onConfirm={handleDelete} onCancel={() => setConfirmDelete(null)} />
+    </div>
+  );
+}
+
+// ── All Invoices ──────────────────────────────────────────────────────────────
+function InvoicesPage({ onNavigate }) {
+  const [invoices, setInvoices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('');
+
+  const load = useCallback(() => {
+    setLoading(true);
+    invoicesAPI.list({ search, status: filter || undefined })
+      .then(r => setInvoices(Array.isArray(r.data) ? r.data : r.data.results || []))
+      .catch(() => toast.error('Failed to load'))
+      .finally(() => setLoading(false));
+  }, [search, filter]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const cols = [
+    { label: 'Invoice No', render: r => <span style={{ fontFamily: 'DM Mono', fontSize: '0.78rem', color: 'var(--color-primary)' }}>{r.invoice_number}</span> },
+    { label: 'Patient',    render: r => <div><span style={{ fontWeight: 600 }}>{r.patient_name}</span><div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>{r.patient_number}</div></div> },
+    { label: 'Total',      render: r => formatKES(r.total_amount) },
+    { label: 'Paid',       render: r => <span style={{ color: 'var(--color-success)', fontWeight: 700 }}>{formatKES(r.amount_paid)}</span> },
+    { label: 'Balance',    render: r => <span style={{ color: Number(r.balance) > 0 ? 'var(--color-danger)' : 'var(--color-success)', fontWeight: 700 }}>{formatKES(r.balance)}</span> },
+    { label: 'Status',     render: r => <StatusBadge status={r.status} /> },
+    { label: 'Date',       render: r => formatDate(r.created_at) },
+  ];
+
+  return (
+    <div>
+      <div className="page-header"><h1 className="page-title">All Invoices</h1></div>
+      <div className="filter-bar">
+        <SearchInput value={search} onChange={setSearch} onClear={() => setSearch('')} placeholder="Search invoice, patient…" style={{ flex: 1 }} />
+        <select className="form-control" style={{ width: 160 }} value={filter} onChange={e => setFilter(e.target.value)}>
+          <option value="">All Statuses</option>
+          {['paid','partial','pending','waived','cancelled'].map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </div>
+      <div className="card">
+        <DataTable columns={cols} data={invoices} loading={loading} emptyIcon="bi-receipt-cutoff" />
+      </div>
+    </div>
+  );
+}
+
+// ── Billing Report ────────────────────────────────────────────────────────────
+function BillingReportPage({ onNavigate }) {
+  const [daily, setDaily] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    invoicesAPI.dailySummary()
+      .then(r => setDaily(r.data))
+      .catch(() => toast.error('Failed to load report'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <Loading />;
+
+  return (
+    <div>
+      <div className="page-header"><h1 className="page-title">Billing Report</h1><p className="page-subtitle">Today's financial summary</p></div>
+      <div className="grid-stats" style={{ marginBottom: 24 }}>
+        <StatCard icon="bi-cash-coin"   iconBg="#FFF8E1" iconColor="var(--color-accent)"  value={formatKES(daily?.total_collected)} label="Total Collected" />
+        <StatCard icon="bi-receipt"     iconBg="#E8F5F3" iconColor="var(--color-primary)" value={daily?.invoice_count}               label="Total Invoices" />
+        <StatCard icon="bi-hourglass"   iconBg="#FFF8E1" iconColor="var(--color-warning)" value={daily?.pending_count}               label="Pending Payment" />
+      </div>
+      <div className="card">
+        <div className="card-header"><h3 className="card-title">Summary for {daily?.date}</h3></div>
+        <DetailRow label="Date"              value={daily?.date} />
+        <DetailRow label="Total Revenue"     value={formatKES(daily?.total_collected)} />
+        <DetailRow label="Total Invoices"    value={daily?.invoice_count} />
+        <DetailRow label="Pending Invoices"  value={daily?.pending_count} />
+        <DetailRow label="Fully Paid"        value={(daily?.invoice_count || 0) - (daily?.pending_count || 0)} />
+      </div>
+    </div>
+  );
+}
+
+// ── Drug Inventory (Admin view) ───────────────────────────────────────────────
+function DrugsAdminPage({ onNavigate }) {
+  const [drugs, setDrugs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+
+  const load = useCallback(() => {
+    setLoading(true);
+    drugsAPI.list({ search })
+      .then(r => setDrugs(Array.isArray(r.data) ? r.data : r.data.results || []))
+      .catch(() => toast.error('Failed to load'))
+      .finally(() => setLoading(false));
+  }, [search]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const cols = [
+    { label: 'Drug',      render: r => <span style={{ fontWeight: 600 }}>{r.name} {r.strength}</span> },
+    { label: 'Category',  render: r => <span className="badge badge-muted">{r.category}</span> },
+    { label: 'Form',      key: 'formulation' },
+    { label: 'Stock',     render: r => <span style={{ fontWeight: 700, color: r.is_low_stock ? 'var(--color-danger)' : 'var(--color-success)' }}>{r.stock_quantity}</span> },
+    { label: 'Reorder',   key: 'reorder_level' },
+    { label: 'Unit Price',render: r => formatKES(r.unit_price) },
+    { label: 'Expiry',    render: r => <span style={{ color: r.is_expired ? 'var(--color-danger)' : 'inherit' }}>{formatDate(r.expiry_date)}</span> },
+  ];
+
+  return (
+    <div>
+      <div className="page-header"><h1 className="page-title">Drug Inventory (Admin)</h1></div>
+      <div className="filter-bar">
+        <SearchInput value={search} onChange={setSearch} onClear={() => setSearch('')} placeholder="Search drugs…" style={{ flex: 1 }} />
+        <button className="btn btn-outline btn-sm" onClick={load}><i className="bi bi-arrow-clockwise" /></button>
+      </div>
+      <div className="card">
+        <DataTable columns={cols} data={drugs} loading={loading} emptyIcon="bi-capsule" />
+      </div>
+    </div>
+  );
+}
+
+// ── Patients List (Admin) ─────────────────────────────────────────────────────
+function PatientsListPage({ onNavigate }) {
+  const [patients, setPatients] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+
+  const load = useCallback(() => {
+    setLoading(true);
+    patientsAPI.list({ search })
+      .then(r => setPatients(Array.isArray(r.data) ? r.data : r.data.results || []))
+      .catch(() => toast.error('Failed to load'))
+      .finally(() => setLoading(false));
+  }, [search]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const cols = [
+    { label: 'Patient No', render: r => <span className="patient-id">{r.patient_number}</span> },
+    { label: 'Name',       render: r => <span style={{ fontWeight: 600 }}>{r.full_name}</span> },
+    { label: 'Age/Gender', render: r => `${r.age} · ${r.gender}` },
+    { label: 'Phone',      key: 'phone' },
+    { label: 'SHA',        render: r => r.sha_verified ? <span className="sha-badge">SHA ✓</span> : '—' },
+    { label: 'Visits',     render: r => r.total_visits },
+    { label: 'Registered', render: r => formatDate(r.created_at) },
+  ];
+
+  return (
+    <div>
+      <div className="page-header"><h1 className="page-title">All Patients</h1></div>
+      <div className="filter-bar">
+        <SearchInput value={search} onChange={setSearch} onClear={() => setSearch('')} placeholder="Search patients…" style={{ flex: 1 }} />
+        <button className="btn btn-outline btn-sm" onClick={load}><i className="bi bi-arrow-clockwise" /></button>
+      </div>
+      <div className="card">
+        <DataTable columns={cols} data={patients} loading={loading} emptyIcon="bi-person-x" />
+      </div>
+    </div>
+  );
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
 export default function AdminDashboard({ activePage, onNavigate }) {
+  const navigate = (page) => onNavigate(page);
   switch (activePage) {
-    case 'users':    return <UserManagementPage />;
-    case 'patients': return <AllPatientsPage />;
-    case 'billing':  return <BillingReportPage />;
-    default:         return <AdminOverviewPage />;
+    case 'users':           return <UsersPage         onNavigate={navigate} />;
+    case 'specialists':     return <SpecialistsPage   onNavigate={navigate} />;
+    case 'tariffs':         return <TariffsPage       onNavigate={navigate} />;
+    case 'invoices':        return <InvoicesPage      onNavigate={navigate} />;
+    case 'billing_report':  return <BillingReportPage onNavigate={navigate} />;
+    case 'drugs_admin':     return <DrugsAdminPage    onNavigate={navigate} />;
+    case 'patients_list':   return <PatientsListPage  onNavigate={navigate} />;
+    default:                return <AdminDashboardPage onNavigate={navigate} />;
   }
 }

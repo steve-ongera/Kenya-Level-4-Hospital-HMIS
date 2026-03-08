@@ -144,9 +144,19 @@ class Patient(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.patient_number:
-            year  = timezone.now().year
-            count = Patient.objects.filter(created_at__year=year).count() + 1
-            self.patient_number = f"KNH-{year}-{count:05d}"
+            from django.db.models import Max
+            year = timezone.now().year
+            last = Patient.objects.filter(
+                patient_number__startswith=f"KNH-{year}-"
+            ).aggregate(m=Max("patient_number"))["m"]
+            if last:
+                try:
+                    seq = int(last.split("-")[-1]) + 1
+                except (ValueError, IndexError):
+                    seq = Patient.objects.filter(created_at__year=year).count() + 1
+            else:
+                seq = 1
+            self.patient_number = f"KNH-{year}-{seq:05d}"
         super().save(*args, **kwargs)
 
     def __str__(self):

@@ -1,164 +1,320 @@
 /**
- * Sidebar.jsx
- * Role-aware navigation sidebar.
- * Each role sees its own menu. DEV items are visible but non-clickable.
+ * components/layout/Sidebar.jsx
+ * ==============================
+ * Collapsible / drawable sidebar.
+ * – Desktop: icon-only collapse mode
+ * – Mobile: full slide-over drawer
  */
 
-import { authService } from '../../services/api';
+import { useState } from 'react';
 
-const MODULE_MENUS = {
-  receptionist: [
-    { id: 'dashboard',  icon: '🏠', label: 'Dashboard' },
-    { id: 'search',     icon: '🔍', label: 'Find Patient' },
-    { id: 'register',   icon: '➕', label: 'Register Patient' },
-    { id: 'visit',      icon: '📋', label: 'Register Visit' },
-    { id: 'queue',      icon: '👥', label: 'Queue Monitor' },
-    { id: 'payment',    icon: '💳', label: 'Payments' },
-    { id: 'etims',      icon: '🧾', label: 'eTIMS', dev: true },
-    { id: 'sha',        icon: '🛡️', label: 'SHA Claims', dev: true },
-  ],
-  nurse: [
-    { id: 'dashboard',    icon: '🏠', label: 'Dashboard' },
-    { id: 'triage_queue', icon: '⏳', label: 'Triage Queue' },
-    { id: 'triage_form',  icon: '🩺', label: 'Record Vitals' },
-    { id: 'inpatient',    icon: '🛏️', label: 'Inpatient Ward', dev: true },
-    { id: 'medications',  icon: '💊', label: 'Medication Admin', dev: true },
-    { id: 'reports',      icon: '📊', label: 'Nursing Reports', dev: true },
-  ],
-  doctor: [
-    { id: 'dashboard',    icon: '🏠', label: 'Dashboard' },
-    { id: 'my_queue',     icon: '👥', label: 'My Queue' },
-    { id: 'consultation', icon: '🩺', label: 'Consultation' },
-    { id: 'lab_orders',   icon: '🔬', label: 'Lab Orders' },
-    { id: 'rad_orders',   icon: '🩻', label: 'Radiology Orders' },
-    { id: 'prescriptions',icon: '💊', label: 'Prescriptions' },
-    { id: 'history',      icon: '📁', label: 'Patient History', dev: true },
-    { id: 'referrals',    icon: '🔄', label: 'Referrals', dev: true },
-  ],
-  pharmacist: [
-    { id: 'dashboard',    icon: '🏠', label: 'Dashboard' },
-    { id: 'dispensing',   icon: '📋', label: 'Dispensing Queue' },
-    { id: 'dispense',     icon: '✅', label: 'Dispense Medicine' },
-    { id: 'inventory',    icon: '📦', label: 'Drug Inventory' },
-    { id: 'stock_entry',  icon: '➕', label: 'Stock Entry', dev: true },
-    { id: 'expiry',       icon: '⚠️', label: 'Expiry Alerts', dev: true },
-  ],
-  lab: [
-    { id: 'dashboard',    icon: '🏠', label: 'Dashboard' },
-    { id: 'pending',      icon: '🔬', label: 'Pending Tests' },
-    { id: 'results',      icon: '📝', label: 'Enter Results' },
-    { id: 'history',      icon: '📋', label: 'Results History', dev: true },
-    { id: 'qc',           icon: '✅', label: 'Quality Control', dev: true },
-  ],
-  radiology: [
-    { id: 'dashboard',    icon: '🏠', label: 'Dashboard' },
-    { id: 'pending',      icon: '🩻', label: 'Pending Scans' },
-    { id: 'results',      icon: '📝', label: 'Enter Results' },
-    { id: 'history',      icon: '📋', label: 'Scan History', dev: true },
-  ],
-  admin: [
-    { id: 'dashboard',    icon: '🏠', label: 'Dashboard' },
-    { id: 'users',        icon: '👤', label: 'User Management' },
-    { id: 'patients',     icon: '🏥', label: 'All Patients' },
-    { id: 'billing',      icon: '💰', label: 'Billing Report' },
-    { id: 'inventory',    icon: '📦', label: 'Drug Inventory', dev: true },
-    { id: 'sha_admin',    icon: '🛡️', label: 'SHA Management', dev: true },
-    { id: 'etims_admin',  icon: '🧾', label: 'eTIMS Config', dev: true },
-    { id: 'audit',        icon: '🔐', label: 'Audit Log', dev: true },
-    { id: 'settings',     icon: '⚙️', label: 'System Settings', dev: true },
-  ],
+// ── Nav config per role ───────────────────────────────────────────────────────
+const NAV = {
+  receptionist: {
+    color:    '#0A6B5E',
+    bg:       'rgba(10,107,94,0.18)',
+    label:    'Reception',
+    icon:     '🏥',
+    sections: [
+      {
+        title: 'Main',
+        items: [
+          { page: 'dashboard',      icon: 'bi-grid-1x2-fill',   label: 'Dashboard' },
+          { page: 'queue',          icon: 'bi-people-fill',      label: 'Queue Monitor' },
+        ],
+      },
+      {
+        title: 'Patients',
+        items: [
+          { page: 'search',         icon: 'bi-search',           label: 'Find Patient' },
+          { page: 'register',       icon: 'bi-person-plus-fill', label: 'Register Patient' },
+          { page: 'patients_list',  icon: 'bi-person-lines-fill',label: 'All Patients' },
+        ],
+      },
+      {
+        title: 'Visits & Billing',
+        items: [
+          { page: 'new_visit',      icon: 'bi-clipboard-plus',   label: 'New Visit' },
+          { page: 'visits_today',   icon: 'bi-calendar-day',     label: "Today's Visits" },
+          { page: 'invoices',       icon: 'bi-receipt',          label: 'Invoices' },
+          { page: 'payments',       icon: 'bi-cash-coin',        label: 'Payments' },
+        ],
+      },
+    ],
+  },
+
+  nurse: {
+    color:    '#1565C0',
+    bg:       'rgba(21,101,192,0.18)',
+    label:    'Nursing',
+    icon:     '🩺',
+    sections: [
+      {
+        title: 'Main',
+        items: [
+          { page: 'dashboard',      icon: 'bi-grid-1x2-fill',   label: 'Dashboard' },
+        ],
+      },
+      {
+        title: 'Triage',
+        items: [
+          { page: 'triage_queue',   icon: 'bi-list-ol',          label: 'Triage Queue', badge: true },
+          { page: 'triage_list',    icon: 'bi-clipboard2-pulse',  label: 'All Triage Records' },
+          { page: 'triage_form',    icon: 'bi-plus-square-fill', label: 'Record Vitals' },
+        ],
+      },
+      {
+        title: 'Patients',
+        items: [
+          { page: 'patients_list',  icon: 'bi-person-lines-fill', label: 'Patients' },
+          { page: 'search',         icon: 'bi-search',            label: 'Find Patient' },
+        ],
+      },
+    ],
+  },
+
+  doctor: {
+    color:    '#4A148C',
+    bg:       'rgba(74,20,140,0.18)',
+    label:    'Doctor',
+    icon:     '👨‍⚕️',
+    sections: [
+      {
+        title: 'Main',
+        items: [
+          { page: 'dashboard',        icon: 'bi-grid-1x2-fill',    label: 'Dashboard' },
+          { page: 'my_queue',         icon: 'bi-people-fill',       label: 'My Queue', badge: true },
+        ],
+      },
+      {
+        title: 'Consultations',
+        items: [
+          { page: 'consultations',    icon: 'bi-chat-square-text-fill', label: 'All Consultations' },
+          { page: 'new_consultation', icon: 'bi-plus-square-fill',       label: 'New Consultation' },
+        ],
+      },
+      {
+        title: 'Orders',
+        items: [
+          { page: 'lab_orders',       icon: 'bi-eyedropper',        label: 'Lab Orders' },
+          { page: 'rad_orders',       icon: 'bi-radioactive',       label: 'Radiology Orders' },
+          { page: 'prescriptions',    icon: 'bi-capsule',           label: 'Prescriptions' },
+        ],
+      },
+      {
+        title: 'Reference',
+        items: [
+          { page: 'patients_list',    icon: 'bi-person-lines-fill', label: 'Patients' },
+          { page: 'visits_today',     icon: 'bi-calendar-day',      label: "Today's Visits" },
+        ],
+      },
+    ],
+  },
+
+  pharmacist: {
+    color:    '#BF360C',
+    bg:       'rgba(191,54,12,0.18)',
+    label:    'Pharmacy',
+    icon:     '💊',
+    sections: [
+      {
+        title: 'Main',
+        items: [
+          { page: 'dashboard',        icon: 'bi-grid-1x2-fill',    label: 'Dashboard' },
+        ],
+      },
+      {
+        title: 'Dispensing',
+        items: [
+          { page: 'dispensing_queue', icon: 'bi-list-ul',           label: 'Dispensing Queue', badge: true },
+          { page: 'prescriptions',    icon: 'bi-capsule',           label: 'All Prescriptions' },
+        ],
+      },
+      {
+        title: 'Inventory',
+        items: [
+          { page: 'inventory',        icon: 'bi-box-seam-fill',     label: 'Drug Inventory' },
+          { page: 'low_stock',        icon: 'bi-exclamation-triangle-fill', label: 'Low Stock' },
+          { page: 'expiring',         icon: 'bi-calendar-x-fill',   label: 'Expiring Soon' },
+        ],
+      },
+    ],
+  },
+
+  lab: {
+    color:    '#006064',
+    bg:       'rgba(0,96,100,0.18)',
+    label:    'Laboratory',
+    icon:     '🔬',
+    sections: [
+      {
+        title: 'Main',
+        items: [
+          { page: 'dashboard',        icon: 'bi-grid-1x2-fill',    label: 'Dashboard' },
+        ],
+      },
+      {
+        title: 'Lab Work',
+        items: [
+          { page: 'pending_tests',    icon: 'bi-clock-fill',        label: 'Pending Tests', badge: true },
+          { page: 'lab_orders',       icon: 'bi-clipboard2-data-fill', label: 'All Lab Orders' },
+          { page: 'lab_results',      icon: 'bi-file-earmark-check-fill', label: 'All Results' },
+          { page: 'enter_results',    icon: 'bi-pencil-square',    label: 'Enter Results' },
+        ],
+      },
+      {
+        title: 'Reference',
+        items: [
+          { page: 'patients_list',    icon: 'bi-person-lines-fill', label: 'Patients' },
+        ],
+      },
+    ],
+  },
+
+  radiology: {
+    color:    '#4E342E',
+    bg:       'rgba(78,52,46,0.18)',
+    label:    'Radiology',
+    icon:     '🩻',
+    sections: [
+      {
+        title: 'Main',
+        items: [
+          { page: 'dashboard',         icon: 'bi-grid-1x2-fill',    label: 'Dashboard' },
+        ],
+      },
+      {
+        title: 'Radiology',
+        items: [
+          { page: 'pending_scans',     icon: 'bi-clock-fill',        label: 'Pending Scans', badge: true },
+          { page: 'radiology_orders',  icon: 'bi-clipboard2-data-fill', label: 'All Orders' },
+          { page: 'radiology_results', icon: 'bi-file-earmark-check-fill', label: 'All Results' },
+          { page: 'enter_scan_results',icon: 'bi-pencil-square',    label: 'Enter Results' },
+        ],
+      },
+      {
+        title: 'Reference',
+        items: [
+          { page: 'patients_list',     icon: 'bi-person-lines-fill', label: 'Patients' },
+        ],
+      },
+    ],
+  },
+
+  admin: {
+    color:    '#1B5E20',
+    bg:       'rgba(27,94,32,0.18)',
+    label:    'Admin',
+    icon:     '⚙️',
+    sections: [
+      {
+        title: 'Main',
+        items: [
+          { page: 'dashboard',         icon: 'bi-grid-1x2-fill',    label: 'Dashboard' },
+        ],
+      },
+      {
+        title: 'People',
+        items: [
+          { page: 'users',             icon: 'bi-people-fill',       label: 'User Management' },
+          { page: 'patients_list',     icon: 'bi-person-lines-fill', label: 'All Patients' },
+        ],
+      },
+      {
+        title: 'Clinical Config',
+        items: [
+          { page: 'specialists',       icon: 'bi-award-fill',        label: 'Specialists' },
+          { page: 'tariffs',           icon: 'bi-tags-fill',         label: 'Service Tariffs' },
+          { page: 'drugs_admin',       icon: 'bi-capsule',           label: 'Drug Inventory' },
+        ],
+      },
+      {
+        title: 'Billing & Reports',
+        items: [
+          { page: 'invoices',          icon: 'bi-receipt',           label: 'All Invoices' },
+          { page: 'payments',          icon: 'bi-cash-coin',         label: 'Payments' },
+          { page: 'billing_report',    icon: 'bi-bar-chart-fill',    label: 'Billing Report' },
+          { page: 'visits_report',     icon: 'bi-graph-up',          label: 'Visits Report' },
+        ],
+      },
+    ],
+  },
 };
 
-const MODULE_LABELS = {
-  receptionist: 'Reception',
-  nurse:        'Nursing',
-  doctor:       'Doctor Console',
-  pharmacist:   'Pharmacy',
-  lab:          'Laboratory',
-  radiology:    'Radiology',
-  admin:        'Administration',
-};
-
-const MODULE_COLORS = {
-  receptionist: '#0A6B5E',
-  nurse:        '#1565C0',
-  doctor:       '#4A148C',
-  pharmacist:   '#BF360C',
-  lab:          '#006064',
-  radiology:    '#4E342E',
-  admin:        '#1B5E20',
-};
-
-const MODULE_ICONS = {
-  receptionist: '👩‍💼',
-  nurse:        '👩‍⚕️',
-  doctor:       '👨‍⚕️',
-  pharmacist:   '💊',
-  lab:          '🔬',
-  radiology:    '🩻',
-  admin:        '🔧',
-};
-
-export default function Sidebar({ role, activePage, onNavigate, onLogout, userName }) {
-  const menu   = MODULE_MENUS[role] || [];
-  const color  = MODULE_COLORS[role] || '#0A6B5E';
-  const label  = MODULE_LABELS[role] || role;
+// ── Component ─────────────────────────────────────────────────────────────────
+export default function Sidebar({ role, activePage, onNavigate, onLogout, userName, collapsed, onToggleCollapse, mobileOpen, onCloseMobile }) {
+  const config = NAV[role] || NAV.admin;
 
   return (
-    <aside className="sidebar">
-      {/* ── Logo ── */}
-      <div className="sidebar-logo">
-        <div className="sidebar-logo-row">
-          <div className="sidebar-logo-icon" style={{ background: color }}>
-            🏥
-          </div>
-          <div>
-            <div className="sidebar-logo-title">KNH-L4 HMIS</div>
-            <div className="sidebar-logo-sub">v2.0 · Kenya MOH</div>
-          </div>
-        </div>
-        <div
-          className="sidebar-module-badge"
-          style={{
-            background: color + '30',
-            border: `1px solid ${color}60`,
-            color: '#fff',
-          }}
-        >
-          {MODULE_ICONS[role]} {label}
-        </div>
-      </div>
+    <>
+      {/* Mobile overlay */}
+      {mobileOpen && <div className="sidebar-overlay" onClick={onCloseMobile} />}
 
-      {/* ── Navigation ── */}
-      <nav className="sidebar-nav">
-        {menu.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => !item.dev && onNavigate(item.id)}
-            className={`sidebar-nav-item${activePage === item.id ? ' active' : ''}${item.dev ? ' disabled' : ''}`}
-            style={activePage === item.id ? { background: color } : {}}
-            title={item.dev ? 'Coming soon' : item.label}
-          >
-            <span className="sidebar-nav-icon">{item.icon}</span>
-            <span style={{ flex: 1 }}>{item.label}</span>
-            {item.dev && <span className="sidebar-dev-tag">DEV</span>}
+      <nav className={`sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'mobile-open' : ''}`}>
+
+        {/* Logo */}
+        <div className="sidebar-logo" style={{ position: 'relative' }}>
+          <div className="sidebar-logo-row">
+            <div className="sidebar-logo-icon">{config.icon}</div>
+            {!collapsed && (
+              <div className="sidebar-logo-text">
+                <div className="sidebar-logo-title">Kenya National Hospital</div>
+                <div className="sidebar-logo-sub">HMIS v2.0</div>
+              </div>
+            )}
+          </div>
+          {!collapsed && (
+            <div className="sidebar-module-badge" style={{ background: config.bg, color: config.color }}>
+              {config.label} Module
+            </div>
+          )}
+
+          {/* Collapse toggle button */}
+          <button className="sidebar-collapse-btn" onClick={onToggleCollapse} title={collapsed ? 'Expand' : 'Collapse'}>
+            <i className={`bi bi-chevron-${collapsed ? 'right' : 'left'}`} />
           </button>
-        ))}
-      </nav>
-
-      {/* ── Footer ── */}
-      <div className="sidebar-footer">
-        <div className="sidebar-footer-meta">
-          <div style={{ color: 'rgba(255,255,255,0.55)', fontWeight: 700, marginBottom: 2 }}>
-            {userName}
-          </div>
-          <div>eTIMS · SHA · MOH Level 4</div>
-          <div>Kenya HMIS © 2025</div>
         </div>
-        <button className="sidebar-logout-btn" onClick={onLogout}>
-          <span>🚪</span> Sign Out
-        </button>
-      </div>
-    </aside>
+
+        {/* Nav sections */}
+        <div className="sidebar-nav">
+          {config.sections.map((section) => (
+            <div key={section.title}>
+              {!collapsed && <div className="sidebar-section-title">{section.title}</div>}
+              {section.items.map((item) => (
+                <button
+                  key={item.page}
+                  className={`sidebar-nav-item ${activePage === item.page ? 'active' : ''}`}
+                  onClick={() => { onNavigate(item.page); onCloseMobile?.(); }}
+                  title={collapsed ? item.label : undefined}
+                >
+                  <i className={`bi ${item.icon} sidebar-nav-icon`} />
+                  {!collapsed && <span className="sidebar-nav-label">{item.label}</span>}
+                  {!collapsed && item.badge && <span className="sidebar-badge-dot" />}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="sidebar-footer">
+          {!collapsed && (
+            <div className="sidebar-user-card">
+              <div className="sidebar-user-avatar">
+                <i className="bi bi-person-circle" style={{ color: '#fff' }} />
+              </div>
+              <div className="sidebar-user-info">
+                <div className="sidebar-user-name">{userName}</div>
+                <div className="sidebar-user-dept">{config.label}</div>
+              </div>
+            </div>
+          )}
+          <button className="sidebar-logout-btn" onClick={onLogout} title="Logout">
+            <i className="bi bi-box-arrow-left" />
+            {!collapsed && 'Logout'}
+          </button>
+        </div>
+      </nav>
+    </>
   );
 }

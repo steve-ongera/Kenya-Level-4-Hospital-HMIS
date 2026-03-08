@@ -1,154 +1,171 @@
 /**
  * components/ui/index.jsx
  * =======================
- * Shared UI primitives:  Badge, Button, Card, Input, Select,
- * Textarea, Modal, Table, Tabs, StatCard, SectionHeader,
- * Alert, Spinner, VitalBox
+ * Shared reusable components used across all pages.
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
-// ─── Badge ────────────────────────────────────────────────────────────────────
-export function Badge({ color = 'primary', children }) {
-  return <span className={`badge badge-${color}`}>{children}</span>;
-}
+// ── Toast Notification System ─────────────────────────────────────────────────
+let _addToast = null;
 
-// ─── Button ───────────────────────────────────────────────────────────────────
-export function Button({
-  children, onClick, variant = 'primary', size = 'md',
-  disabled = false, style = {}, icon, type = 'button', fullWidth = false,
-}) {
+export function ToastContainer() {
+  const [toasts, setToasts] = useState([]);
+
+  useEffect(() => {
+    _addToast = (toast) => {
+      const id = Date.now();
+      setToasts(prev => [...prev, { ...toast, id }]);
+      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), toast.duration || 4000);
+    };
+    return () => { _addToast = null; };
+  }, []);
+
+  const remove = (id) => setToasts(prev => prev.filter(t => t.id !== id));
+
+  const icons = { success: 'bi-check-circle-fill', error: 'bi-x-circle-fill', warning: 'bi-exclamation-triangle-fill', info: 'bi-info-circle-fill' };
+
   return (
-    <button
-      type={type}
-      onClick={onClick}
-      disabled={disabled}
-      className={`btn btn-${variant} btn-${size}`}
-      style={{ width: fullWidth ? '100%' : undefined, ...style }}
-    >
-      {icon && <span>{icon}</span>}
-      {children}
-    </button>
-  );
-}
-
-// ─── Card ─────────────────────────────────────────────────────────────────────
-export function Card({ children, style = {}, className = '', onClick }) {
-  return (
-    <div
-      className={`card ${className}`}
-      style={{ cursor: onClick ? 'pointer' : undefined, ...style }}
-      onClick={onClick}
-    >
-      {children}
+    <div className="toast-container">
+      {toasts.map(t => (
+        <div key={t.id} className={`toast toast-${t.type || 'info'}`}>
+          <i className={`bi ${icons[t.type || 'info']} toast-icon`} />
+          <div className="toast-body">
+            {t.title && <div className="toast-title">{t.title}</div>}
+            <div>{t.message}</div>
+          </div>
+          <button className="toast-close" onClick={() => remove(t.id)}>
+            <i className="bi bi-x" />
+          </button>
+        </div>
+      ))}
     </div>
   );
 }
 
-// ─── StatCard ─────────────────────────────────────────────────────────────────
-export function StatCard({ label, value, icon, color = 'var(--color-primary)', sub }) {
-  return (
-    <div className="card stat-card">
-      <div className="stat-card-icon" style={{ background: color + '22' }}>
-        {icon}
-      </div>
-      <div>
-        <div className="stat-card-value">{value}</div>
-        <div className="stat-card-label">{label}</div>
-        {sub && <div className="stat-card-sub" style={{ color }}>{sub}</div>}
-      </div>
-    </div>
-  );
-}
+export const toast = {
+  success: (message, title) => _addToast?.({ type: 'success', message, title }),
+  error:   (message, title) => _addToast?.({ type: 'error',   message, title }),
+  warning: (message, title) => _addToast?.({ type: 'warning', message, title }),
+  info:    (message, title) => _addToast?.({ type: 'info',    message, title }),
+};
 
-// ─── Input ───────────────────────────────────────────────────────────────────
-export function Input({
-  label, value, onChange, placeholder, type = 'text',
-  required = false, disabled = false, style = {}, hint,
-}) {
+// ── Confirm Dialog ────────────────────────────────────────────────────────────
+export function ConfirmDialog({ isOpen, title, message, onConfirm, onCancel, danger = false }) {
+  if (!isOpen) return null;
   return (
-    <div className="form-group" style={style}>
-      {label && (
-        <label className="form-label">
-          {label}
-          {required && <span className="required"> *</span>}
-        </label>
-      )}
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        disabled={disabled}
-        required={required}
-        className="form-control"
-      />
-      {hint && <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 4 }}>{hint}</div>}
-    </div>
-  );
-}
-
-// ─── Select ──────────────────────────────────────────────────────────────────
-export function Select({
-  label, value, onChange, options = [], required = false,
-  disabled = false, placeholder = '-- Select --', style = {},
-}) {
-  return (
-    <div className="form-group" style={style}>
-      {label && (
-        <label className="form-label">
-          {label}
-          {required && <span className="required"> *</span>}
-        </label>
-      )}
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-        required={required}
-        className="form-control"
-      >
-        <option value="">{placeholder}</option>
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
-// ─── Textarea ─────────────────────────────────────────────────────────────────
-export function Textarea({ label, value, onChange, placeholder, rows = 3, required = false, style = {} }) {
-  return (
-    <div className="form-group" style={style}>
-      {label && (
-        <label className="form-label">
-          {label}
-          {required && <span className="required"> *</span>}
-        </label>
-      )}
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        rows={rows}
-        required={required}
-        className="form-control"
-      />
-    </div>
-  );
-}
-
-// ─── Modal ───────────────────────────────────────────────────────────────────
-export function Modal({ open, onClose, title, children, footer, width = 560 }) {
-  if (!open) return null;
-  return (
-    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ maxWidth: width }}>
+    <div className="modal-overlay">
+      <div className="modal modal-sm" style={{ maxWidth: 400 }}>
         <div className="modal-header">
-          <span className="modal-title">{title}</span>
+          <h3 className="modal-title">
+            <i className={`bi ${danger ? 'bi-exclamation-triangle text-danger' : 'bi-question-circle'} me-2`} />
+            {title || 'Confirm Action'}
+          </h3>
+          <button className="modal-close" onClick={onCancel}>×</button>
+        </div>
+        <div className="modal-body">
+          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.88rem' }}>{message}</p>
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-outline-muted btn-sm" onClick={onCancel}>Cancel</button>
+          <button className={`btn ${danger ? 'btn-danger' : 'btn-primary'} btn-sm`} onClick={onConfirm}>
+            {danger ? <><i className="bi bi-trash" /> Delete</> : 'Confirm'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Loading Component ─────────────────────────────────────────────────────────
+export function Loading({ message = 'Loading…' }) {
+  return (
+    <div className="loading-full">
+      <div className="spinner" />
+      <span style={{ color: 'var(--color-text-muted)', fontSize: '0.84rem' }}>{message}</span>
+    </div>
+  );
+}
+
+// ── Status Badge Helpers ──────────────────────────────────────────────────────
+const STATUS_BADGE = {
+  // Visit statuses
+  registered:   'badge-muted',
+  payment_done: 'badge-info',
+  triage_done:  'badge-warning',
+  in_consult:   'badge-primary',
+  paused:       'badge-warning',
+  prescribing:  'badge-info',
+  pharmacy:     'badge-info',
+  discharged:   'badge-success',
+  referred:     'badge-muted',
+  admitted:     'badge-danger',
+  // Lab/Rad statuses
+  pending:      'badge-warning',
+  collected:    'badge-info',
+  processing:   'badge-info',
+  resulted:     'badge-success',
+  verified:     'badge-success',
+  scheduled:    'badge-info',
+  performed:    'badge-success',
+  // Prescription
+  dispensed:    'badge-success',
+  partial:      'badge-warning',
+  cancelled:    'badge-danger',
+  // Invoice
+  paid:         'badge-success',
+  draft:        'badge-muted',
+  waived:       'badge-muted',
+  // Triage priority
+  immediate:    'badge-danger',
+  urgent:       'badge-warning',
+  normal:       'badge-success',
+  non_urgent:   'badge-info',
+  // Lab interpretation
+  normal_lab:   'badge-success',
+  abnormal:     'badge-warning',
+  critical:     'badge-danger',
+  // Consultation
+  open:         'badge-primary',
+  completed:    'badge-success',
+};
+
+export function StatusBadge({ status, label }) {
+  const cls = STATUS_BADGE[status] || 'badge-muted';
+  const text = label || status?.replace(/_/g, ' ');
+  return <span className={`badge ${cls}`}>{text}</span>;
+}
+
+// ── Priority Badge ────────────────────────────────────────────────────────────
+export function PriorityBadge({ priority }) {
+  const map = {
+    immediate: { cls: 'badge-danger',   icon: 'bi-circle-fill', label: 'Immediate' },
+    urgent:    { cls: 'badge-warning',  icon: 'bi-circle-fill', label: 'Urgent' },
+    normal:    { cls: 'badge-success',  icon: 'bi-circle-fill', label: 'Normal' },
+    non_urgent:{ cls: 'badge-info',     icon: 'bi-circle-fill', label: 'Non-Urgent' },
+  };
+  const p = map[priority] || map.normal;
+  return <span className={`badge ${p.cls}`}><i className={`bi ${p.icon}`} style={{ fontSize: '0.55rem' }} />{p.label}</span>;
+}
+
+// ── Modal Wrapper ─────────────────────────────────────────────────────────────
+export function Modal({ isOpen, onClose, title, children, footer, size = 'md', icon }) {
+  useEffect(() => {
+    const handleKey = (e) => { if (e.key === 'Escape') onClose?.(); };
+    if (isOpen) document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose?.(); }}>
+      <div className={`modal modal-${size}`} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3 className="modal-title">
+            {icon && <i className={`bi ${icon}`} style={{ marginRight: 8, color: 'var(--color-primary)' }} />}
+            {title}
+          </h3>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
         <div className="modal-body">{children}</div>
@@ -158,110 +175,161 @@ export function Modal({ open, onClose, title, children, footer, width = 560 }) {
   );
 }
 
-// ─── Table ───────────────────────────────────────────────────────────────────
-export function Table({ columns, data, actions, loading }) {
-  if (loading) return <div className="loading-overlay"><div className="spinner" /> Loading…</div>;
+// ── Data Table ────────────────────────────────────────────────────────────────
+export function DataTable({ columns, data, loading, onRowClick, emptyIcon = 'bi-inbox', emptyText = 'No records found' }) {
+  if (loading) return <Loading />;
   return (
     <div className="table-wrapper">
       <table className="table">
         <thead>
           <tr>
-            {columns.map((col) => (
-              <th key={col.key}>{col.label}</th>
+            {columns.map((col, i) => (
+              <th key={i} style={col.style}>{col.label}</th>
             ))}
-            {actions && <th style={{ textAlign: 'right' }}>Actions</th>}
           </tr>
         </thead>
         <tbody>
           {data.length === 0 ? (
-            <tr>
-              <td colSpan={columns.length + (actions ? 1 : 0)} className="table-empty">
-                No records found
-              </td>
+            <tr><td colSpan={columns.length}>
+              <div className="table-empty">
+                <i className={`bi ${emptyIcon}`} style={{ fontSize: '2rem', display: 'block', marginBottom: 8, opacity: 0.3 }} />
+                {emptyText}
+              </div>
+            </td></tr>
+          ) : data.map((row, i) => (
+            <tr key={row.id || i} onClick={() => onRowClick?.(row)} style={onRowClick ? { cursor: 'pointer' } : {}}>
+              {columns.map((col, j) => (
+                <td key={j}>{col.render ? col.render(row) : row[col.key]}</td>
+              ))}
             </tr>
-          ) : (
-            data.map((row, i) => (
-              <tr key={row.id || i}>
-                {columns.map((col) => (
-                  <td key={col.key}>
-                    {col.render ? col.render(row[col.key], row) : row[col.key] ?? '–'}
-                  </td>
-                ))}
-                {actions && <td style={{ textAlign: 'right' }}>{actions(row)}</td>}
-              </tr>
-            ))
-          )}
+          ))}
         </tbody>
       </table>
     </div>
   );
 }
 
-// ─── Tabs ────────────────────────────────────────────────────────────────────
-export function Tabs({ tabs, active, onChange }) {
+// ── Stat Card ─────────────────────────────────────────────────────────────────
+export function StatCard({ icon, iconBg, iconColor, value, label, sub, subColor = 'var(--color-success)' }) {
   return (
-    <div className="tabs">
-      {tabs.map((tab) => (
-        <button
-          key={tab.id}
-          className={`tab-btn${active === tab.id ? ' active' : ''}`}
-          onClick={() => onChange(tab.id)}
-        >
-          {tab.icon && <span>{tab.icon}</span>}
-          {tab.label}
-          {tab.count !== undefined && (
-            <Badge color={active === tab.id ? 'primary' : 'muted'}>{tab.count}</Badge>
-          )}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-// ─── SectionHeader ────────────────────────────────────────────────────────────
-export function SectionHeader({ title, sub, action }) {
-  return (
-    <div className="section-header">
+    <div className="card stat-card">
+      <div className="stat-card-icon" style={{ background: iconBg }}>
+        <i className={`bi ${icon}`} style={{ color: iconColor, fontSize: '1.35rem' }} />
+      </div>
       <div>
-        <h2 className="section-title">{title}</h2>
-        {sub && <p className="section-sub">{sub}</p>}
+        <div className="stat-card-value">{value ?? '—'}</div>
+        <div className="stat-card-label">{label}</div>
+        {sub && <div className="stat-card-sub" style={{ color: subColor }}>{sub}</div>}
       </div>
-      {action && <div>{action}</div>}
     </div>
   );
 }
 
-// ─── Alert ───────────────────────────────────────────────────────────────────
-export function Alert({ type = 'info', children }) {
-  const icons = { info: 'ℹ️', warning: '⚠️', danger: '❌', success: '✅' };
+// ── Search Input ──────────────────────────────────────────────────────────────
+export function SearchInput({ value, onChange, onClear, placeholder = 'Search…', style }) {
   return (
-    <div className={`alert alert-${type}`}>
-      <span>{icons[type]}</span>
-      <span>{children}</span>
+    <div className="search-bar" style={style}>
+      <i className="bi bi-search" />
+      <input
+        className="form-control"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+      />
+      {value && (
+        <button className="search-clear" onClick={onClear}>
+          <i className="bi bi-x-circle-fill" />
+        </button>
+      )}
     </div>
   );
 }
 
-// ─── Spinner ─────────────────────────────────────────────────────────────────
-export function Spinner({ label = 'Loading…' }) {
+// ── Pagination ────────────────────────────────────────────────────────────────
+export function Pagination({ page, totalPages, onPageChange }) {
+  if (totalPages <= 1) return null;
+  const pages = [];
+  for (let i = 1; i <= totalPages; i++) pages.push(i);
+  const visible = pages.filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1);
+
   return (
-    <div className="loading-overlay">
-      <div className="spinner" />
-      {label}
+    <div className="pagination">
+      <button className="page-btn" onClick={() => onPageChange(page - 1)} disabled={page === 1}>
+        <i className="bi bi-chevron-left" />
+      </button>
+      {visible.map((p, i) => {
+        const prev = visible[i - 1];
+        return (
+          <>
+            {prev && p - prev > 1 && <span style={{ color: 'var(--color-text-muted)', padding: '0 4px' }}>…</span>}
+            <button key={p} className={`page-btn ${p === page ? 'active' : ''}`} onClick={() => onPageChange(p)}>{p}</button>
+          </>
+        );
+      })}
+      <button className="page-btn" onClick={() => onPageChange(page + 1)} disabled={page === totalPages}>
+        <i className="bi bi-chevron-right" />
+      </button>
     </div>
   );
 }
 
-// ─── VitalBox ─────────────────────────────────────────────────────────────────
-export function VitalBox({ label, value, unit, normal }) {
-  const isAbnormal = normal !== undefined && !normal;
+// ── Form Field ────────────────────────────────────────────────────────────────
+export function Field({ label, required, error, children, hint }) {
   return (
-    <div className="vital-box" style={isAbnormal ? { borderColor: 'var(--color-danger)', background: 'var(--color-danger-bg)' } : {}}>
-      <div className="vital-value" style={isAbnormal ? { color: 'var(--color-danger)' } : {}}>
-        {value ?? '—'}
-      </div>
-      {unit && <div className="vital-unit">{unit}</div>}
-      <div className="vital-label">{label}</div>
+    <div className="form-group">
+      {label && (
+        <label className="form-label">
+          {label}{required && <span className="required">*</span>}
+        </label>
+      )}
+      {children}
+      {hint  && <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 3 }}>{hint}</div>}
+      {error && <div className="form-error"><i className="bi bi-exclamation-circle" /> {error}</div>}
     </div>
   );
+}
+
+// ── Detail Row ────────────────────────────────────────────────────────────────
+export function DetailRow({ label, value, children }) {
+  return (
+    <div className="detail-row">
+      <div className="detail-label">{label}</div>
+      <div className="detail-value">{children || value || <span style={{ color: 'var(--color-text-muted)' }}>—</span>}</div>
+    </div>
+  );
+}
+
+// ── Section Divider ───────────────────────────────────────────────────────────
+export function SectionTitle({ children, icon }) {
+  return (
+    <div className="form-section-title">
+      {icon && <i className={`bi ${icon}`} style={{ marginRight: 6 }} />}
+      {children}
+    </div>
+  );
+}
+
+// ── Money Format ──────────────────────────────────────────────────────────────
+export function formatKES(amount) {
+  return `KES ${Number(amount || 0).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// ── Date Helpers ──────────────────────────────────────────────────────────────
+export function formatDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+export function formatDateTime(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+export function timeAgo(d) {
+  if (!d) return '—';
+  const diff = Date.now() - new Date(d).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return formatDate(d);
 }

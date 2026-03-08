@@ -1,21 +1,12 @@
 /**
- * Navbar.jsx  (Top bar)
- * Displays page title, live clock, user info, and notification bell.
+ * components/layout/Navbar.jsx
+ * =============================
+ * Fixed top bar with live clock, breadcrumb, and mobile menu button.
  */
 
 import { useState, useEffect } from 'react';
 
-const ROLE_ICONS = {
-  receptionist: '👩‍💼',
-  nurse:        '👩‍⚕️',
-  doctor:       '👨‍⚕️',
-  pharmacist:   '💊',
-  lab:          '🔬',
-  radiology:    '🩻',
-  admin:        '🔧',
-};
-
-export default function Navbar({ title, user }) {
+export default function Navbar({ title, user, collapsed, onMenuClick }) {
   const [now, setNow] = useState(new Date());
 
   useEffect(() => {
@@ -23,45 +14,57 @@ export default function Navbar({ title, user }) {
     return () => clearInterval(t);
   }, []);
 
-  const dateStr = now.toLocaleDateString('en-KE', {
-    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
-  });
-  const timeStr = now.toLocaleTimeString('en-KE', {
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-  });
+  const roleLabel = {
+    receptionist: 'Receptionist',
+    nurse:        'Nurse',
+    doctor:       'Doctor',
+    pharmacist:   'Pharmacist',
+    lab:          'Lab Technician',
+    radiology:    'Radiographer',
+    admin:        'Administrator',
+  }[user?.role] || user?.role || '';
+
+  const roleIcon = {
+    receptionist: 'bi-person-badge-fill',
+    nurse:        'bi-heart-pulse-fill',
+    doctor:       'bi-stethoscope',
+    pharmacist:   'bi-capsule-pill',
+    lab:          'bi-eyedropper',
+    radiology:    'bi-radioactive',
+    admin:        'bi-shield-lock-fill',
+  }[user?.role] || 'bi-person-fill';
 
   return (
-    <header className="topbar">
-      {/* Left – page title */}
-      <h1 className="topbar-title">{title}</h1>
+    <header className={`topbar ${collapsed ? 'sidebar-collapsed' : ''}`}>
+      <div className="topbar-left">
+        {/* Mobile/desktop menu toggle */}
+        <button className="topbar-menu-btn" onClick={onMenuClick} title="Toggle menu">
+          <i className="bi bi-list" />
+        </button>
+        <div>
+          <div className="topbar-title">{title}</div>
+        </div>
+      </div>
 
-      {/* Right – clock + user */}
       <div className="topbar-right">
-        {/* SHA / eTIMS status chips */}
-        <div style={{ display: 'flex', gap: 6 }}>
-          <span className="sha-badge">🛡️ SHA</span>
-          <span className="etims-badge">🧾 eTIMS</span>
-        </div>
-
-        {/* Clock */}
+        {/* Live clock */}
         <div className="topbar-datetime">
-          <div className="topbar-date">{dateStr}</div>
-          <div className="topbar-time">{timeStr}</div>
+          <div className="topbar-date">
+            {now.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })}
+          </div>
+          <div className="topbar-time">
+            {now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+          </div>
         </div>
 
-        {/* Divider */}
-        <div style={{ width: 1, height: 32, background: 'var(--color-border)' }} />
-
-        {/* User */}
+        {/* User info */}
         <div className="topbar-user">
           <div className="topbar-avatar">
-            {ROLE_ICONS[user?.role] || '👤'}
+            <i className={`bi ${roleIcon}`} style={{ color: 'var(--color-primary)' }} />
           </div>
           <div>
             <div className="topbar-user-name">{user?.full_name || user?.username}</div>
-            <div className="topbar-user-role" style={{ textTransform: 'capitalize' }}>
-              {user?.role}
-            </div>
+            <div className="topbar-user-role">{roleLabel}</div>
           </div>
         </div>
       </div>

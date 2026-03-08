@@ -86,6 +86,80 @@ python manage.py loaddata fixtures/demo.json
 python manage.py runserver 0.0.0.0:8000
 ```
 
+
+# HMIS Frontend v2.0 — Kenya National Hospital
+
+## Setup
+
+```bash
+# Copy files into your existing frontend/src folder
+# Then install dependencies and start dev server:
+
+cd frontend
+npm install axios react react-dom  # ensure these are present
+npm run dev
+```
+
+## What's New in v2.0
+
+### Architecture
+- **Collapsible sidebar** — click the chevron button on the sidebar edge to collapse to icon-only mode
+- **Drawable mobile sidebar** — hamburger menu opens a full slide-over drawer on mobile
+- **Bootstrap Icons** — loaded via CDN in `index.html` (no npm install needed)
+- **Toast notification system** — success/error/warning/info toasts from any page
+- **Confirm dialogs** — safe delete confirmations throughout
+
+### Role Pages
+
+| Role         | Pages |
+|-------------|-------|
+| Receptionist | Dashboard, Find Patient, Register Patient, All Patients, New Visit, Today's Visits, Queue Monitor, Invoices, Payments |
+| Nurse        | Dashboard, Triage Queue, All Triage Records, Record Vitals, Patients |
+| Doctor       | Dashboard, My Queue, Consultations, New Consultation (with lab/rad orders + prescriptions), Lab Orders, Radiology Orders, Prescriptions |
+| Pharmacist   | Dashboard, Dispensing Queue, All Prescriptions, Drug Inventory, Low Stock, Expiring Soon |
+| Lab Tech     | Dashboard, Pending Tests, All Lab Orders, All Results, Enter Result |
+| Radiographer | Dashboard, Pending Scans, All Orders, All Results, Enter Report |
+| Admin        | Dashboard, Users CRUD, Specialists CRUD, Service Tariffs CRUD, Drug Inventory, All Invoices, Billing Report, All Patients |
+
+### Key Files Changed/Added
+```
+src/
+  App.jsx                              ← Updated: drawable sidebar, Bootstrap Icons
+  styles/global.css                    ← Updated: sidebar collapse, mobile drawer, toasts
+  services/api.js                      ← Updated: complete API coverage
+  components/
+    layout/Sidebar.jsx                 ← Updated: collapsible + mobile drawer
+    layout/Navbar.jsx                  ← Updated: menu toggle button
+    ui/index.jsx                       ← New: ToastContainer, Modal, DataTable, StatCard, Field, etc.
+  pages/
+    auth/LoginPage.jsx
+    receptionist/ReceptionistDashboard.jsx
+    nurse/NurseDashboard.jsx
+    doctor/DoctorDashboard.jsx
+    pharmacy/PharmacyDashboard.jsx
+    lab/LabDashboard.jsx
+    radiology/RadiologyDashboard.jsx
+    admin/AdminDashboard.jsx
+```
+
+## Environment
+
+Create `.env` in `frontend/`:
+```env
+VITE_API_URL=http://localhost:8000/api/v1
+```
+
+## CRUD Summary by Role
+
+- **Receptionist**: Create/read/update/delete patients; create visits; record invoice payments
+- **Nurse**: Create/read triage records; read patients
+- **Doctor**: Create consultations with nested lab orders, radiology orders, prescriptions; read all orders/results
+- **Pharmacist**: Dispense prescriptions; full CRUD on drug inventory
+- **Lab Tech**: Update lab order status; create lab results
+- **Radiographer**: Update radiology order status; create radiology results  
+- **Admin**: Full CRUD on users, specialists, tariffs; read all billing/patients
+
+
 ---
 
 ## Frontend Setup
