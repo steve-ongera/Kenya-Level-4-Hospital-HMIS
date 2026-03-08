@@ -4,7 +4,15 @@
  * Shared reusable components used across all pages.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, Children, cloneElement, isValidElement } from 'react';
+
+// ── Unique ID helper ──────────────────────────────────────────────────────────
+let _uidCounter = 0;
+function useUid() {
+  const ref = useRef(null);
+  if (ref.current === null) ref.current = `field-${++_uidCounter}`;
+  return ref.current;
+}
 
 // ── Toast Notification System ─────────────────────────────────────────────────
 let _addToast = null;
@@ -150,9 +158,22 @@ export function PriorityBadge({ priority }) {
 
 // ── Modal Wrapper ─────────────────────────────────────────────────────────────
 export function Modal({ isOpen, onClose, title, children, footer, size = 'md', icon }) {
+  const bodyRef = useRef(null);
+
   useEffect(() => {
     const handleKey = (e) => { if (e.key === 'Escape') onClose?.(); };
-    if (isOpen) document.addEventListener('keydown', handleKey);
+    if (isOpen) {
+      document.addEventListener('keydown', handleKey);
+      // Autofocus first text input / select / textarea when modal opens
+      const t = setTimeout(() => {
+        if (!bodyRef.current) return;
+        const el = bodyRef.current.querySelector(
+          'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])'
+        );
+        el?.focus();
+      }, 60); // small delay lets the DOM settle
+      return () => { document.removeEventListener('keydown', handleKey); clearTimeout(t); };
+    }
     return () => document.removeEventListener('keydown', handleKey);
   }, [isOpen, onClose]);
 
@@ -168,7 +189,7 @@ export function Modal({ isOpen, onClose, title, children, footer, size = 'md', i
           </h3>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
-        <div className="modal-body">{children}</div>
+        <div className="modal-body" ref={bodyRef}>{children}</div>
         {footer && <div className="modal-footer">{footer}</div>}
       </div>
     </div>
@@ -275,16 +296,27 @@ export function Pagination({ page, totalPages, onPageChange }) {
 
 // ── Form Field ────────────────────────────────────────────────────────────────
 export function Field({ label, required, error, children, hint }) {
+  const uid = useUid();
+
+  // Clone the first child element and inject id={uid} so the label's htmlFor works.
+  // This means clicking anywhere on the label row immediately focuses the input.
+  const enhancedChildren = Children.map(children, (child, i) => {
+    if (i === 0 && isValidElement(child) && !child.props.id) {
+      return cloneElement(child, { id: uid });
+    }
+    return child;
+  });
+
   return (
     <div className="form-group">
       {label && (
-        <label className="form-label">
+        <label className="form-label" htmlFor={uid} style={{ cursor: 'pointer', userSelect: 'none' }}>
           {label}{required && <span className="required">*</span>}
         </label>
       )}
-      {children}
+      {enhancedChildren}
       {hint  && <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: 3 }}>{hint}</div>}
-      {error && <div className="form-error"><i className="bi bi-exclamation-circle" /> {error}</div>}
+      {error && <div className="form-error"><i className="bi bi-exclamation-circle" /> {Array.isArray(error) ? error[0] : error}</div>}
     </div>
   );
 }
